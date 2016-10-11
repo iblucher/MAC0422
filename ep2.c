@@ -13,6 +13,10 @@ struct rider_i {
 };
 typedef struct rider_i rider;
 
+int **track;
+
+rider *team_1, *team_2;
+
 /* retorna 30 ou 60 com 50% de probabilidade */
 int random_speed () {
     int r = rand() % 2; // PODE ESTAR ERRADO 
@@ -20,7 +24,35 @@ int random_speed () {
     else return 60;
 }
 
+/* thread dos ciclistas */
+void * rider_int (void * args) {
+
+}
+
 int main (int ac, char **av) {
+
+    int i;
+    pthread_t *rider_t;
+
+    track = malloc(d*sizeof(*int));
+    for (i = 0; i < d; i++) {
+        track[i] = malloc (2 * sizeof (int));
+    }
+
+    team_1 = malloc (n*sizeof(rider));
+    team_2 = malloc (n*sizeof(rider));
+    for (i = 0; i < n; i++) {
+        team_1[i].id = i;
+        team_1[i].team = 1;
+        team_1[i].speed = 60; // ARRUMAR PROS DOIS CASOS
+        team_1[i].lap = 1;
+        team_2[i].id = n + i;
+        team_2[i].team = 2;
+        team_2[i].speed = 60; // ARRUMAR PROS DOIS CASOS
+        team_2[i].lap = 1;
+        track[i][0] = team_1[i].id;
+        track[d/2 + i][0] = team_2[i].id;
+    }
 
     /* ./ep2 d n [v||u] -d
      * d = tamanho do velódromo
@@ -41,6 +73,10 @@ int main (int ac, char **av) {
     if (ac == 5)
         if (strcmp(av[4], "-d") == 0)
             debug = 1;
+    }
+
+    for (i = 0; i < 2*n; i++) {
+        pthread_create(&rider_t[i], NULL, rider_int, NULL);
     }
 
     return EXIT_SUCCESS;

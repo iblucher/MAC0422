@@ -239,7 +239,7 @@ int uniform_run (int ad, int an, int adebug) {
 
     sem_init (&sem, 0, 2*n);
 
-    pthread_barrier_init (2*n + 1);
+    pthread_barrier_init (&barrier, NULL, (2*n + 1));
 
     rider_t = malloc (2*n * sizeof(pthread_t));
 

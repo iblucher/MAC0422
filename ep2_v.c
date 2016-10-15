@@ -31,12 +31,11 @@ typedef struct {
     rider r;
 } wrapper;
 
-/* retorna 30 ou 60 com 50% de probabilidade */
-int random_speed () {
-    int r;
-    r = 2 * ((double) rand () / ((double) RAND_MAX + 1));
-    if (r == 0) return 30;
-    else return 60;
+/* numero entre 0 ... max - 1 com igual prbabilidade */
+int random (int max) {
+    double d;
+    d = (double) rand () / ((double) RAND_MAX + 1);
+    return d * max;
 }
 
 int compare_rank (const void *a, const void *b) {

@@ -31,8 +31,8 @@ int main (int ac, char **av) {
 
     if (speed == 'u')
         uniform_run (d, n, debug);
-    /*else if (speed == 'v')
+    else if (speed == 'v')
         varied_run (d, n, debug);
-    */
+
     return EXIT_SUCCESS;
 }

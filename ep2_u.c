@@ -23,7 +23,7 @@ typedef struct {
     int lap;
 } rider;
 
-int n, d, debug;
+int n, d, debug, dead = 0;
 int **track, *lap_change;
 pthread_mutex_t *mutex;
 sem_t sem;
@@ -87,13 +87,16 @@ static int outdistance (rider r1, rider r2) {
 
 static void kill_rider (int id) {
     rider r;
-    if (id < n)
-        r = team_1[id];
-    else
-        r = team_2[id - n];
+    do {
+        if (id < n)
+            r = team_1[id];
+        else
+            r = team_2[id - n];
+    } while (r.pos == -1);
     track[r.pos][r.lane] = -1;
     /* imprimir lap */
     r.lane = r.pos = r.lap = -1;
+    dead++;
 }
 
 static void *manager (void * args) {
@@ -140,9 +143,11 @@ static void *manager (void * args) {
         if ((lap_change[first_1.id] && first_1.lap > 4 * q) ||
             (lap_change[first_2.id] && first_2.lap > 4 * q)) {
             if (!random_int(10))
-                kill_rider (random_int(2*n));
+                kill_rider (random_int(2*n - dead));
             q++;
         }
+
+        /* lap_change */
 
         pthread_barrier_wait (&barrier);
     }
@@ -187,10 +192,11 @@ static void * rider_int (void * args) {
     return NULL;
 }
 
-int uniform_run (int d, int n, int debug) {
+int uniform_run (int ad, int an, int adebug) {
     int i;
     pthread_t manager_t, *rider_t;
 
+    n = an, d = ad, debug = adebug;
     srand (time (NULL));
 
     /* alocando a pista */
@@ -249,7 +255,7 @@ int uniform_run (int d, int n, int debug) {
 
     if (pthread_join (manager_t, NULL))
         return EXIT_FAILURE;
-    
+
     for (i = 0; i < d; i++)
         pthread_mutex_destroy (&mutex[i]);
 

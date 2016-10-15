@@ -31,7 +31,7 @@ pthread_barrier_t barrier;
 rider *team_1, *team_2;
 
 /* numero entre 0 ... max - 1 com igual prbabilidade */
-static int random (int max) {
+static int random_int (int max) {
     double k;
     k = (double) rand () / ((double) RAND_MAX + 1);
     return k * max;
@@ -139,8 +139,8 @@ static void *manager (void * args) {
         first_1 = team_1[rank_1[0]], first_2 = team_2[rank_2[0]];
         if ((lap_change[first_1.id] && first_1.lap > 4 * q) ||
             (lap_change[first_2.id] && first_2.lap > 4 * q)) {
-            if (!random(10))
-                kill_rider (random(2*n));
+            if (!random_int(10))
+                kill_rider (random_int(2*n));
             q++;
         }
 
@@ -233,7 +233,7 @@ int uniform_run (int d, int n, int debug) {
 
     sem_init (&sem, 0, 2*n);
 
-    pthread_barrier_init (2*n + 1);
+    pthread_barrier_init (&barrier, NULL, (2*n + 1));
 
     rider_t = malloc (2*n * sizeof(pthread_t));
 

@@ -249,8 +249,6 @@ int uniform_run (int d, int n, int debug) {
 
     if (pthread_join (manager_t, NULL))
         return EXIT_FAILURE;
-
-
     
     for (i = 0; i < d; i++)
         pthread_mutex_destroy (&mutex[i]);

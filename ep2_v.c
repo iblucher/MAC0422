@@ -11,7 +11,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
+#include <semaphore.h>
 #include <pthread.h>
+#include "ep2_v.h"
 
 int **track;
 int *arrive, *cont, *lap_change; 

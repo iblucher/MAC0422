@@ -13,12 +13,7 @@
 #include <time.h>
 #include <semaphore.h>
 #include <pthread.h>
-
-int **track, *lap_change;
-sem_t sem;
-pthread_barrier_t barrier;
-pthread_mutex_t *mutex;
-rider *team_1, *team_2;
+#include "ep2_u.h"
 
 typedef struct {
     int id;
@@ -28,15 +23,18 @@ typedef struct {
     int lap;
 } rider;
 
-typedef struct {
-    rider r;
-} wrapper;
+int n, d, debug;
+int **track, *lap_change;
+pthread_mutex_t *mutex;
+sem_t sem;
+pthread_barrier_t barrier;
+rider *team_1, *team_2;
 
 /* numero entre 0 ... max - 1 com igual prbabilidade */
 static int random (int max) {
-    double d;
-    d = (double) rand () / ((double) RAND_MAX + 1);
-    return d * max;
+    double k;
+    k = (double) rand () / ((double) RAND_MAX + 1);
+    return k * max;
 }
 
 static int compare_rank_1 (const void *a, const void *b) {
@@ -50,7 +48,7 @@ static int compare_rank_1 (const void *a, const void *b) {
     } else {
         if (aa.pos < bb.pos)
             return 1;
-        else (aa.pos > bb.pos)
+        else if (aa.pos > bb.pos)
             return -1;
     }
     return 0;
@@ -67,7 +65,7 @@ static int compare_rank_2 (const void *a, const void *b) {
     } else {
         if ((aa.pos + (d - d/2)) % d < (bb.pos + (d - d/2)) % d)
             return 1;
-        else (aa.pos + (d - d/2)) % d > (bb.pos + (d - d/2)) % d)
+        else if ((aa.pos + (d - d/2)) % d > (bb.pos + (d - d/2)) % d)
             return -1;
     }
     return 0;
@@ -87,7 +85,12 @@ static int outdistance (rider r1, rider r2) {
         return 0;
 }
 
-static void kill_rider (rider r) {
+static void kill_rider (int id) {
+    rider r;
+    if (id < n)
+        r = team_1[id];
+    else
+        r = team_2[id - n];
     track[r.pos][r.lane] = -1;
     /* imprimir lap */
     r.lane = r.pos = r.lap = -1;
@@ -95,7 +98,8 @@ static void kill_rider (rider r) {
 
 static void *manager (void * args) {
     int i = 1, q = 1;
-    int *rank_1, rank_2;
+    int *rank_1, *rank_2;
+    rider first_1, first_2;
     rank_1 = malloc (n*sizeof (int));
     rank_2 = malloc (n*sizeof (int));
     while(1) {
@@ -108,7 +112,7 @@ static void *manager (void * args) {
         qsort (rank_1, n, sizeof (int), compare_rank_1);
         qsort (rank_2, n, sizeof (int), compare_rank_2);
         
-        if (i = outdistance (team_1[rank_1[2]], team_2[rank_2[2]])) {
+        if ((i = outdistance (team_1[rank_1[2]], team_2[rank_2[2]]))) {
             printf ("Time %d venceu!\n", i);
             free (rank_1), rank_1 = NULL;
             free (rank_2), rank_2 = NULL;
@@ -133,8 +137,8 @@ static void *manager (void * args) {
         }
 
         first_1 = team_1[rank_1[0]], first_2 = team_2[rank_2[0]];
-        if ((lap_change[first_1]] && first_1.lap > 4 * q) ||
-            (lap_change[first_2]] && first_2.lap > 4 * q)) {
+        if ((lap_change[first_1.id] && first_1.lap > 4 * q) ||
+            (lap_change[first_2.id] && first_2.lap > 4 * q)) {
             if (!random(10))
                 kill_rider (random(2*n));
             q++;
@@ -150,8 +154,8 @@ static void *manager (void * args) {
  * - caso frente cheia: verificar diagonal superior pra saber se pode ultrapassar
  */
 static void * rider_int (void * args) {
-    rider r = (*(wrapper *)args).r;
     int walked = 0;
+    rider r = *(rider *)args;
     while (1) {
         if (r.pos != -1) {
             pthread_mutex_lock(&mutex[(r.pos - 1 + d) % d]);
@@ -180,20 +184,20 @@ static void * rider_int (void * args) {
         sem_wait (&sem);
         pthread_barrier_wait (&barrier);
     }
+    return NULL;
 }
 
 int uniform_run (int d, int n, int debug) {
     int i;
     pthread_t manager_t, *rider_t;
-    wrapper w;
 
     srand (time (NULL));
 
     /* alocando a pista */
-    track = malloc(d*sizeof(*int));
+    track = malloc(d*sizeof(int *));
     for (i = 0; i < d; i++) {
         track[i] = malloc (2 * sizeof (int));
-        track[i] = -1;
+        track[i][0] = track[i][1] = -1;
     }
 
     /* alocando os times */
@@ -234,15 +238,13 @@ int uniform_run (int d, int n, int debug) {
     rider_t = malloc (2*n * sizeof(pthread_t));
 
     for (i = 0; i < n; i++) {
-        w.r = team_1[i];
-        if (pthread_create(&rider_t[team_1[i].id], NULL, rider_int, &w))
+        if (pthread_create(&rider_t[team_1[i].id], NULL, rider_int, &team_1[i]))
             return EXIT_FAILURE;
-        w.r = team_2[i];
-        if (pthread_create(&rider_t[team_2[i].id], NULL, rider_int, &w))
+        if (pthread_create(&rider_t[team_2[i].id], NULL, rider_int, &team_2[i]))
             return EXIT_FAILURE;
     }
 
-    if (pthread_create(&manager_t, NULL, manager, &w))
+    if (pthread_create(&manager_t, NULL, manager, NULL))
         return EXIT_FAILURE;
 
     if (pthread_join (manager_t, NULL))

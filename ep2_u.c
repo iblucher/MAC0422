@@ -23,10 +23,9 @@ typedef struct {
     int lap;
 } rider;
 
-int n, d, debug, dead = 0;
+int n, d, debug, dead, cont;
 int **track, *lap_change;
-pthread_mutex_t *mutex;
-sem_t sem;
+pthread_mutex_t *mutex, cont_mutex;
 pthread_barrier_t barrier;
 rider *team_1, *team_2;
 
@@ -117,11 +116,7 @@ static void *manager (void *args) {
     rank_1 = malloc (n * sizeof (int));
     rank_2 = malloc (n * sizeof (int));
     while (1) {
-        i = 1;
-        while (i)
-            sem_getvalue (&sem, &i);
-        for (i = 0; i < 2 * n; i++)
-            sem_post (&sem);
+        while (cont != 2*n);
 
         for (i = 0; i < n; i++)
             rank_1[i] = rank_2[i] = i;
@@ -160,6 +155,9 @@ static void *manager (void *args) {
             q++;
         }
 
+        pthread_mutex_lock (&cont_mutex);
+        cont = 0;
+        pthread_mutex_unlock (&cont_mutex);
         pthread_barrier_wait (&barrier);
     }
     return NULL;
@@ -198,7 +196,9 @@ static void *rider_int (void *args) {
             pthread_mutex_unlock (&mutex[r.pos]);
             pthread_mutex_unlock (&mutex[(r.pos - 1 + d) % d]);
         }
-        sem_wait (&sem);
+        pthread_mutex_lock (&cont_mutex);
+        cont++;
+        pthread_mutex_unlock (&cont_mutex);
         pthread_barrier_wait (&barrier);
     }
     return NULL;
@@ -210,6 +210,8 @@ int uniform_run (int ad, int an, int adebug) {
 
     n = an, d = ad, debug = adebug;
     srand (time (NULL));
+
+    dead = cont = 0;
 
     /* alocando a pista */
     track = malloc (d * sizeof (int *));
@@ -243,13 +245,14 @@ int uniform_run (int ad, int an, int adebug) {
         lap_change[i] = 0;
     }
 
+    pthread_mutex_init (&cont_mutex, NULL);
+
     /* alocando o vetor de mutexes */
     mutex = malloc (d * sizeof (pthread_mutex_t));
 
     for (i = 0; i < d; i++)
         pthread_mutex_init (&mutex[i], NULL);
 
-    sem_init (&sem, 0, 2 * n);
     pthread_barrier_init (2 * n + 1);
 
     rider_t = malloc (2 * n * sizeof (pthread_t));
@@ -269,10 +272,11 @@ int uniform_run (int ad, int an, int adebug) {
     if (pthread_join (manager_t, NULL))
         return EXIT_FAILURE;
 
+    pthread_mutex_destroy (&cont_mutex);
+
     for (i = 0; i < d; i++)
         pthread_mutex_destroy (&mutex[i]);
 
-    sem_destroy (&sem);
     pthread_barrier_destroy (&barrier);
 
     for (i = 0; i < d; i++)

@@ -86,16 +86,16 @@ static int outdistance (rider r1, rider r2) {
 }
 
 static void kill_rider (int id) {
-    rider r;
+    rider *r;
     do {
         if (id < n)
-            r = team_1[id];
+            r = &team_1[id];
         else
-            r = team_2[id - n];
-    } while (r.pos == -1);
-    track[r.pos][r.lane] = -1;
+            r = &team_2[id - n];
+    } while (r->pos == -1);
+    track[r->pos][r->lane] = -1;
     /* imprimir lap */
-    r.lane = r.pos = r.lap = -1;
+    r->lane = r->pos = r->lap = -1;
     dead++;
 }
 
@@ -115,9 +115,12 @@ static void *manager (void *args) {
     rider first_1, first_2;
     rank_1 = malloc (n * sizeof (int));
     rank_2 = malloc (n * sizeof (int));
+    kill_rider(0);
+    printf("morto %d\n", team_1[0].pos);
     while (1) {
-        while (cont != 2*n);
-
+        while (1)
+            if (cont == 2*n) break;
+        
         for (i = 0; i < n; i++)
             rank_1[i] = rank_2[i] = i;
         qsort (rank_1, n, sizeof (int), compare_rank_1);
@@ -155,6 +158,8 @@ static void *manager (void *args) {
             q++;
         }
 
+        printf ("- %d %d\n", first_1.lap, first_2.lap);
+        /*printTrack();*/
         pthread_mutex_lock (&cont_mutex);
         cont = 0;
         pthread_mutex_unlock (&cont_mutex);
@@ -169,32 +174,34 @@ static void *manager (void *args) {
  * - caso frente cheia: verificar diagonal superior pra saber se pode ultrapassar
  */
 static void *rider_int (void *args) {
-    int walked = 0;
-    rider r = *(rider *) args;
+    int walked, pos;
+    rider *r = (rider *) args;
     while (1) {
-        if (r.pos != -1) {
-            pthread_mutex_lock (&mutex[(r.pos - 1 + d) % d]);
-            pthread_mutex_lock (&mutex[r.pos]);
-            if (track[r.pos][0] == -1) {
-                track[r.pos][r.lane] = -1;
-                r.lane = 0;
+        pos = r->pos;
+        walked = 0;
+        if (r->pos != -1) {
+            pthread_mutex_lock (&mutex[(pos - 1 + d) % d]);
+            pthread_mutex_lock (&mutex[pos]);
+            if (track[r->pos][0] == -1) {
+                track[r->pos][r->lane] = -1;
+                r->lane = 0;
             }
-            if (track[(r.pos + 1) % d][0] == -1) {
-                track[r.pos][r.lane] = -1;
-                r.lane = 0, r.pos = (r.pos + 1) % d;
+            if (track[(r->pos + 1) % d][0] == -1) {
+                track[r->pos][r->lane] = -1;
+                r->lane = 0, r->pos = (r->pos + 1) % d;
                 walked = 1;
-            } else if (track[(r.pos + 1) % d][1] == -1) {
-                track[r.pos][r.lane] = -1;
-                r.lane = 1, r.pos = (r.pos + 1) % d;
+            } else if (track[(r->pos + 1) % d][1] == -1) {
+                track[r->pos][r->lane] = -1;
+                r->lane = 1, r->pos = (r->pos + 1) % d;
                 walked = 1;
             }
-            if (walked && r.team == 1 && r.pos == 0)
-                lap_change[r.id] = 1, r.lap++;
-            else if (walked && r.team == 2 && r.pos == d / 2)
-                lap_change[r.id] = 1, r.lap++;
-            track[r.pos][r.lane] = r.id;
-            pthread_mutex_unlock (&mutex[r.pos]);
-            pthread_mutex_unlock (&mutex[(r.pos - 1 + d) % d]);
+            if (walked && r->team == 1 && r->pos == 0)
+                lap_change[r->id] = 1, r->lap++;
+            else if (walked && r->team == 2 && r->pos == d / 2)
+                lap_change[r->id] = 1, r->lap++;
+            track[r->pos][r->lane] = r->id;
+            pthread_mutex_unlock (&mutex[pos]);
+            pthread_mutex_unlock (&mutex[(pos - 1 + d) % d]);
         }
         pthread_mutex_lock (&cont_mutex);
         cont++;
@@ -253,7 +260,7 @@ int uniform_run (int ad, int an, int adebug) {
     for (i = 0; i < d; i++)
         pthread_mutex_init (&mutex[i], NULL);
 
-    pthread_barrier_init (2 * n + 1);
+    pthread_barrier_init (&barrier, NULL, 2 * n + 1);
 
     rider_t = malloc (2 * n * sizeof (pthread_t));
 

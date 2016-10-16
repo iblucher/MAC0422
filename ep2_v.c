@@ -25,7 +25,7 @@ typedef struct {
 } rider;
 
 int n, d, debug, dead = 0;
-int **track, *lap_change;
+int **track, *lap_change, *delayed;
 pthread_mutex_t *mutex;
 sem_t sem;
 pthread_barrier_t barrier;
@@ -64,9 +64,10 @@ static int compare_rank_2 (const void *a, const void *b) {
     } else if (aa.lap > bb.lap) {
         return -1;
     } else {
-        if ((aa.pos + (d - d/2)) % d < (bb.pos + (d - d/2)) % d)
+        if ((aa.pos + (d - d / 2)) % d < (bb.pos + (d - d / 2)) % d)
             return 1;
-        else if ((aa.pos + (d - d/2)) % d > (bb.pos + (d - d/2)) % d)
+        else if ((aa.pos + (d - d / 2)) % d >
+                 (bb.pos + (d - d / 2)) % d)
             return -1;
     }
     return 0;
@@ -76,11 +77,11 @@ static int outdistance (rider r1, rider r2) {
     int dist1, dist2;
 
     dist1 = d * r1.lap + r1.pos;
-    dist2 = d * r2.lap + (r2.pos + (d - d/2)) % d;
+    dist2 = d * r2.lap + (r2.pos + (d - d / 2)) % d;
 
-    if (dist1 - dist2 > d/2)
+    if (dist1 - dist2 > d / 2)
         return 1;
-    else if (dist2 - dist1 > d/2)
+    else if (dist2 - dist1 > d / 2)
         return 2;
     else
         return 0;
@@ -100,22 +101,23 @@ static void kill_rider (int id) {
     dead++;
 }
 
-static void *manager (void * args) {
+static void *manager (void *args) {
     int i = 1, q = 1;
     int *rank_1, *rank_2;
-    rider first_1, first_2;
-    rank_1 = malloc (n*sizeof (int));
-    rank_2 = malloc (n*sizeof (int));
-    while(1) {
-        while (i) sem_getvalue (&sem, &i);
-        for (i = 0; i < 2*n; i++)
+    rider r, first_1, first_2;
+    rank_1 = malloc (n * sizeof (int));
+    rank_2 = malloc (n * sizeof (int));
+    while (1) {
+        while (i)
+            sem_getvalue (&sem, &i);
+        for (i = 0; i < 2 * n; i++)
             sem_post (&sem);
 
         for (i = 0; i < n; i++)
             rank_1[i] = i, rank_2[i] = n + i;
         qsort (rank_1, n, sizeof (int), compare_rank_1);
         qsort (rank_2, n, sizeof (int), compare_rank_2);
-        
+
         if ((i = outdistance (team_1[rank_1[2]], team_2[rank_2[2]]))) {
             printf ("Time %d venceu!\n", i);
             free (rank_1), rank_1 = NULL;
@@ -123,7 +125,12 @@ static void *manager (void * args) {
             return NULL;
         }
 
-        if (team_1[rank_1[2]].lap > 16) {
+        if (team_1[rank_1[2]].lap > 16 && team_2[rank_2[2]].lap > 16) {
+            printf ("Empate!\n");
+            free (rank_1), rank_1 = NULL;
+            free (rank_2), rank_2 = NULL;
+            return NULL;
+        } else if (team_1[rank_1[2]].lap > 16) {
             printf ("Time 1 venceu!\n");
             free (rank_1), rank_1 = NULL;
             free (rank_2), rank_2 = NULL;
@@ -133,22 +140,53 @@ static void *manager (void * args) {
             free (rank_1), rank_1 = NULL;
             free (rank_2), rank_2 = NULL;
             return NULL;
-        } else {
-            printf ("Empate!\n");
-            free (rank_1), rank_1 = NULL;
-            free (rank_2), rank_2 = NULL;
-            return NULL;
         }
 
         first_1 = team_1[rank_1[0]], first_2 = team_2[rank_2[0]];
         if ((lap_change[first_1.id] && first_1.lap > 4 * q) ||
             (lap_change[first_2.id] && first_2.lap > 4 * q)) {
-            if (!random_int(10))
-                kill_rider (random_int(2*n - dead));
+            if (!random_int (10))
+                kill_rider (random_int (2 * n - dead));
             q++;
         }
 
-        
+        for (i = 0; i < n; i++) {
+            r = team_1[rank_1[i]];
+            if (lap_change[r.id]) {
+                if (delayed[r.id] == r.lap) {
+                    r.speed = 30;
+                    delayed[r.id] = 0;
+                } else if (random_int (2)) {
+                    r.speed = 60;
+                    delayed[r.id] = 0;
+                } else {
+                    if (r.speed != 30) {
+                        r.speed = 30;
+                        for (i = i + 1; i < n; i++)
+                            delayed[team_1[rank_1[i]].id] = r.lap;
+                    }
+                    delayed[r.id] = r.lap;
+                }
+            }
+
+            r = team_2[rank_2[i]];
+            if (lap_change[r.id]) {
+                if (delayed[r.id] == r.lap) {
+                    r.speed = 30;
+                    delayed[r.id] = 0;
+                } else if (random_int (2)) {
+                    r.speed = 60;
+                    delayed[r.id] = 0;
+                } else {
+                    if (r.speed != 30) {
+                        r.speed = 30;
+                        for (i = i + 1; i < n; i++)
+                            delayed[team_2[rank_2[i]].id] = r.lap;
+                    }
+                    delayed[r.id] = r.lap;
+                }
+            }
+        }
 
         pthread_barrier_wait (&barrier);
     }
@@ -159,14 +197,14 @@ static void *manager (void * args) {
  * - caso frente vazio: anda pra frente uma casa
  * - caso frente cheia: verificar diagonal superior pra saber se pode ultrapassar
  */
-void * rider_int (void * args) {
+void *rider_int (void *args) {
     int walked = 0, turn = 0;
-    rider r = *(rider *)args;
+    rider r = *(rider *) args;
     while (1) {
         if (r.pos != -1) {
             if (!(r.speed == 30 && turn == 0)) {
-                pthread_mutex_lock(&mutex[(r.pos - 1 + d) % d]);
-                pthread_mutex_lock(&mutex[r.pos]);
+                pthread_mutex_lock (&mutex[(r.pos - 1 + d) % d]);
+                pthread_mutex_lock (&mutex[r.pos]);
                 if (track[r.pos][0] == -1) {
                     track[r.pos][r.lane] = -1;
                     r.lane = 0;
@@ -182,11 +220,11 @@ void * rider_int (void * args) {
                 }
                 if (walked && r.team == 1 && r.pos == 0)
                     lap_change[r.id] = 1, r.lap++;
-                else if (walked && r.team == 2 && r.pos == d/2)
+                else if (walked && r.team == 2 && r.pos == d / 2)
                     lap_change[r.id] = 1, r.lap++;
                 track[r.pos][r.lane] = r.id;
-                pthread_mutex_unlock(&mutex[r.pos]);
-                pthread_mutex_unlock(&mutex[(r.pos - 1 + d) % d]);
+                pthread_mutex_unlock (&mutex[r.pos]);
+                pthread_mutex_unlock (&mutex[(r.pos - 1 + d) % d]);
             }
             turn = (turn + 1) % 2;
         }
@@ -204,15 +242,15 @@ int varied_run (int ad, int an, int adebug) {
     srand (time (NULL));
 
     /* alocando a pista */
-    track = malloc(d*sizeof(*int));
+    track = malloc (d * sizeof (*int));
     for (i = 0; i < d; i++) {
         track[i] = malloc (2 * sizeof (int));
         track[i] = -1;
     }
 
     /* alocando os times */
-    team_1 = malloc (n*sizeof(rider));
-    team_2 = malloc (n*sizeof(rider));
+    team_1 = malloc (n * sizeof (rider));
+    team_2 = malloc (n * sizeof (rider));
 
     /* inicializando os ciclistas e suas propriedades */
     for (i = 0; i < n; i++) {
@@ -226,37 +264,44 @@ int varied_run (int ad, int an, int adebug) {
         team_2[i].team = 2;
         team_2[i].speed = 30;
         team_2[i].lane = 0;
-        team_2[i].pos = d/2 + i;
+        team_2[i].pos = d / 2 + i;
         team_2[i].lap = 1;
         track[team_1[i].pos][team_1[i].lane] = team_1[i].id;
         track[team_2[i].pos][team_2[i].lane] = team_2[i].id;
     }
 
-    lap_change = malloc(2*n*sizeof(int));
-    for (i = 0; i < 2*n; i++) {
+    lap_change = malloc (2 * n * sizeof (int));
+    for (i = 0; i < 2 * n; i++) {
         lap_change[i] = 0;
     }
 
+    delayed = malloc (2 * n * sizeof (int));
+    for (i = 0; i < 2 * n; i++) {
+        delayed[i] = 0;
+    }
+
     /* alocando o vetor de mutexes */
-    mutex = malloc(d*sizeof(pthread_mutex_t));
+    mutex = malloc (d * sizeof (pthread_mutex_t));
 
     for (i = 0; i < d; i++)
         pthread_mutex_init (&mutex[i], NULL);
 
-    sem_init (&sem, 0, 2*n);
+    sem_init (&sem, 0, 2 * n);
 
-    pthread_barrier_init (2*n + 1);
+    pthread_barrier_init (2 * n + 1);
 
-    rider_t = malloc (2*n * sizeof(pthread_t));
+    rider_t = malloc (2 * n * sizeof (pthread_t));
 
     for (i = 0; i < n; i++) {
-        if (pthread_create(&rider_t[team_1[i].id], NULL, rider_int, &team_1[i]))
+        if (pthread_create
+            (&rider_t[team_1[i].id], NULL, rider_int, &team_1[i]))
             return EXIT_FAILURE;
-        if (pthread_create(&rider_t[team_2[i].id], NULL, rider_int, &team_2[i]))
+        if (pthread_create
+            (&rider_t[team_2[i].id], NULL, rider_int, &team_2[i]))
             return EXIT_FAILURE;
     }
 
-    if (pthread_create(&manager_t, NULL, manager, NULL))
+    if (pthread_create (&manager_t, NULL, manager, NULL))
         return EXIT_FAILURE;
 
     if (pthread_join (manager_t, NULL))
@@ -271,7 +316,7 @@ int varied_run (int ad, int an, int adebug) {
     for (i = 0; i < d; i++)
         free (track[i]), track[i] = NULL;
     free (track);
-    
+
     free (team_1), team_1 = NULL;
     free (team_2), team_2 = NULL;
     free (lap_change), lap_change = NULL;

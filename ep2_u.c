@@ -26,7 +26,8 @@ typedef struct {
 int n, d, debug, dead = 0;
 int **track, *lap_change;
 pthread_mutex_t *mutex;
-sem_t sem1, sem2;
+sem_t sem;
+pthread_barrier_t barrier;
 rider *team_1, *team_2;
 
 /* numero entre 0 ... max - 1 com igual prbabilidade */
@@ -110,17 +111,17 @@ static void printTrack () {
 }
 
 static void *manager (void *args) {
-    int i, q = 1, flag, sem;
+    int i, q = 1;
     int *rank_1, *rank_2;
     rider first_1, first_2;
     rank_1 = malloc (n * sizeof (int));
     rank_2 = malloc (n * sizeof (int));
     while (1) {
-        flag = 0;
-        sem = 1;
-        while (sem)
-            sem_getvalue (&sem1, &sem);
-        printf ("-\n");
+        i = 1;
+        while (i)
+            sem_getvalue (&sem, &i);
+        for (i = 0; i < 2 * n; i++)
+            sem_post (&sem);
 
         for (i = 0; i < n; i++)
             rank_1[i] = rank_2[i] = i;
@@ -154,21 +155,12 @@ static void *manager (void *args) {
         first_1 = team_1[rank_1[0]], first_2 = team_2[rank_2[0]];
         if ((lap_change[first_1.id] && first_1.lap > 4 * q) ||
             (lap_change[first_2.id] && first_2.lap > 4 * q)) {
-            if (!random_int (10)) {
+            if (!random_int (10))
                 kill_rider (random_int (2 * n - dead));
-                flag = 1;
-            }
             q++;
         }
 
-        for (i = 0; i < 2 * n - dead + flag; i++)
-            sem_post (&sem2);
-        sem = 1;
-        while (sem)
-            sem_getvalue (&sem2, &sem);
-        printf ("--\n");
-        for (i = 0; i < 2 * n - dead; i++)
-            sem_post (&sem1);        
+        pthread_barrier_wait (&barrier);
     }
     return NULL;
 }
@@ -205,13 +197,9 @@ static void *rider_int (void *args) {
             track[r.pos][r.lane] = r.id;
             pthread_mutex_unlock (&mutex[r.pos]);
             pthread_mutex_unlock (&mutex[(r.pos - 1 + d) % d]);
-        } else {
-            return NULL;
         }
-        sem_wait (&sem1);
-        printf ("-%d\n", r.id);
-        sem_wait (&sem2);
-        printf ("--%d\n", r.id);
+        sem_wait (&sem);
+        pthread_barrier_wait (&barrier);
     }
     return NULL;
 }
@@ -261,8 +249,8 @@ int uniform_run (int ad, int an, int adebug) {
     for (i = 0; i < d; i++)
         pthread_mutex_init (&mutex[i], NULL);
 
-    sem_init (&sem1, 0, 2 * n);
-    sem_init (&sem2, 0, 0);
+    sem_init (&sem, 0, 2 * n);
+    pthread_barrier_init (2 * n + 1);
 
     rider_t = malloc (2 * n * sizeof (pthread_t));
 
@@ -284,8 +272,8 @@ int uniform_run (int ad, int an, int adebug) {
     for (i = 0; i < d; i++)
         pthread_mutex_destroy (&mutex[i]);
 
-    sem_destroy (&sem1);
-    sem_destroy (&sem2);
+    sem_destroy (&sem);
+    pthread_barrier_destroy (&barrier);
 
     for (i = 0; i < d; i++)
         free (track[i]), track[i] = NULL;

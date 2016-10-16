@@ -104,7 +104,7 @@ static void kill_rider (int id) {
 static void *manager (void *args) {
     int i = 1, q = 1;
     int *rank_1, *rank_2;
-    rider r, first_1, first_2;
+    rider *r, first_1, first_2;
     rank_1 = malloc (n * sizeof (int));
     rank_2 = malloc (n * sizeof (int));
     while (1) {
@@ -151,39 +151,39 @@ static void *manager (void *args) {
         }
 
         for (i = 0; i < n; i++) {
-            r = team_1[rank_1[i]];
-            if (lap_change[r.id]) {
-                if (delayed[r.id] == r.lap) {
-                    r.speed = 30;
-                    delayed[r.id] = 0;
+            r = &team_1[rank_1[i]];
+            if (lap_change[r->id]) {
+                if (delayed[r->id] == r->lap) {
+                    r->speed = 30;
+                    delayed[r->id] = 0;
                 } else if (random_int (2)) {
-                    r.speed = 60;
-                    delayed[r.id] = 0;
+                    r->speed = 60;
+                    delayed[r->id] = 0;
                 } else {
-                    if (r.speed != 30) {
-                        r.speed = 30;
+                    if (r->speed != 30) {
+                        r->speed = 30;
                         for (i = i + 1; i < n; i++)
-                            delayed[team_1[rank_1[i]].id] = r.lap;
+                            delayed[team_1[rank_1[i]].id] = r->lap;
                     }
-                    delayed[r.id] = r.lap;
+                    delayed[r->id] = r->lap;
                 }
             }
 
-            r = team_2[rank_2[i]];
-            if (lap_change[r.id]) {
-                if (delayed[r.id] == r.lap) {
-                    r.speed = 30;
-                    delayed[r.id] = 0;
+            r = &team_2[rank_2[i]];
+            if (lap_change[r->id]) {
+                if (delayed[r->id] == r->lap) {
+                    r->speed = 30;
+                    delayed[r->id] = 0;
                 } else if (random_int (2)) {
-                    r.speed = 60;
-                    delayed[r.id] = 0;
+                    r->speed = 60;
+                    delayed[r->id] = 0;
                 } else {
-                    if (r.speed != 30) {
-                        r.speed = 30;
+                    if (r->speed != 30) {
+                        r->speed = 30;
                         for (i = i + 1; i < n; i++)
-                            delayed[team_2[rank_2[i]].id] = r.lap;
+                            delayed[team_2[rank_2[i]].id] = r->lap;
                     }
-                    delayed[r.id] = r.lap;
+                    delayed[r->id] = r->lap;
                 }
             }
         }
@@ -288,7 +288,7 @@ int varied_run (int ad, int an, int adebug) {
 
     sem_init (&sem, 0, 2 * n);
 
-    pthread_barrier_init (2 * n + 1);
+    pthread_barrier_init (&barrier, NULL, 2 * n + 1);
 
     rider_t = malloc (2 * n * sizeof (pthread_t));
 

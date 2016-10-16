@@ -115,6 +115,8 @@ static void *manager (void *args) {
     rider first_1, first_2;
     rank_1 = malloc (n * sizeof (int));
     rank_2 = malloc (n * sizeof (int));
+    kill_rider(0);
+    printf("morto %d\n", team_1[0].pos);
     while (1) {
         while (1)
             if (cont == 2*n) break;
@@ -156,6 +158,8 @@ static void *manager (void *args) {
             q++;
         }
 
+        printf ("- %d %d\n", first_1.lap, first_2.lap);
+        /*printTrack();*/
         pthread_mutex_lock (&cont_mutex);
         cont = 0;
         pthread_mutex_unlock (&cont_mutex);

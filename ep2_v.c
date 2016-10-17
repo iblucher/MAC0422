@@ -123,7 +123,7 @@ static void printTrack () {
         if (track[i][0] != -1) {
             fprintf (stderr, "%3d ", track[i][0]);
         } else {
-            if (i == 0 || i == d/2)
+            if (i == 0 || i == d / 2)
                 fprintf (stderr, "  * ");
             else
                 fprintf (stderr, "  - ");
@@ -134,7 +134,7 @@ static void printTrack () {
         if (track[i][1] != -1) {
             fprintf (stderr, "%3d ", track[i][1]);
         } else {
-            if (i == 0 || i == d/2)
+            if (i == 0 || i == d / 2)
                 fprintf (stderr, "  * ");
             else
                 fprintf (stderr, "  - ");
@@ -264,7 +264,7 @@ static void *manager (void *args) {
                 q++;
             }
         }
-        
+
         for (i = 0; i < n; i++) {
             if (team_1[i].lap > 16) {
                 order[arrived] = team_1[i].id;
@@ -283,7 +283,7 @@ static void *manager (void *args) {
         }
 
 
-        
+
         for (i = 0; i < n; i++) {
             r = &team_1[rank_1[i]];
             if (lap_change[r->id]) {

@@ -95,6 +95,7 @@ static void kill_rider (int id) {
     else
         r = &team_2[id - n];
     track[r->pos][r->lane] = -1;
+    lap_change[r->id] = 0;
     r->lane = r->pos = r->lap = -1;
     dead++;
 }
@@ -119,17 +120,25 @@ static int kill_rider_r (int id) {
 static void printTrack () {
     int i;
     for (i = 0; i < d; i++) {
-        if (track[i][0] != -1)
-            fprintf (stderr, "%4d ", track[i][0]);
-        else
-            fprintf (stderr, "   - ");
+        if (track[i][0] != -1) {
+            fprintf (stderr, "%3d ", track[i][0]);
+        } else {
+            if (i == 0 || i == d/2)
+                fprintf (stderr, "  * ");
+            else
+                fprintf (stderr, "  - ");
+        }
     }
     fprintf (stderr, "\n");
     for (i = 0; i < d; i++) {
-        if (track[i][1] != -1)
-            fprintf (stderr, "%4d ", track[i][1]);
-        else
-            fprintf (stderr, "   - ");
+        if (track[i][1] != -1) {
+            fprintf (stderr, "%3d ", track[i][1]);
+        } else {
+            if (i == 0 || i == d/2)
+                fprintf (stderr, "  * ");
+            else
+                fprintf (stderr, "  - ");
+        }
     }
     fprintf (stderr, "\n");
 }

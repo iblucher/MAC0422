@@ -11,7 +11,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include "ep2_u.h"
-/*#include "ep2_v.h"*/
+#include "ep2_v.h"
 
 int main (int ac, char **av) {
     char speed;
@@ -26,15 +26,15 @@ int main (int ac, char **av) {
     d = atoi (av[1]);
     n = atoi (av[2]);
     /*if (d <= 249 || n <= 4 || n > (d / 4 + 1))
-       return EXIT_FAILURE; */
+       return EXIT_FAILURE;*/
     speed = *(av[3]);
     if (ac > 4 && *av[4] == '-' && *(av[4] + 1) == 'd')
         debug = 1;
 
     if (speed == 'u')
         uniform_run (d, n, debug);
-    /*else if (speed == 'v')
-       varied_run (d, n, debug); */
+    else if (speed == 'v')
+       varied_run (d, n, debug);
 
     return EXIT_SUCCESS;
 }

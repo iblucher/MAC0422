@@ -18,7 +18,8 @@ int main (int ac, char **av) {
     int d, n, debug = 0;
 
     if (ac < 4) {
-        fprintf (stderr, "Entrada incorreta. Número insuficiente de argumentos.\n");
+        fprintf (stderr,
+                 "Entrada incorreta. Número insuficiente de argumentos.\n");
         return EXIT_FAILURE;
     }
 

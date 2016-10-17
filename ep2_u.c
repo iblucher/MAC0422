@@ -23,10 +23,13 @@ typedef struct {
     int lap;
 } rider;
 
-int n, d, debug, dead, cont;
-int **track, *lap_change;
-pthread_mutex_t *mutex, cont_mutex;
-pthread_barrier_t barrier;
+
+
+int n, d, debug, dead, result, finished, arrived;
+int **track, *lap_change, *order, deads[4][2];
+float *final_time;
+pthread_mutex_t *mutex;
+sem_t sem1, sem2;
 rider *team_1, *team_2;
 
 /* numero entre 0 ... max - 1 com igual prbabilidade */
@@ -85,7 +88,7 @@ static int outdistance (rider r1, rider r2) {
         return 0;
 }
 
-static void kill_rider (int id) {
+static int kill_rider (int id) {
     rider *r;
     do {
         if (id < n)
@@ -93,77 +96,153 @@ static void kill_rider (int id) {
         else
             r = &team_2[id - n];
     } while (r->pos == -1);
+    deads[dead][0] = r->id, deads[dead][1] = r->lap;
     track[r->pos][r->lane] = -1;
-    /* imprimir lap */
     r->lane = r->pos = r->lap = -1;
     dead++;
+    return r->id;
 }
 
 static void printTrack () {
     int i;
-    for (i = 0; i < d; i++)
-        printf ("%3d ", track[i][0]);
-    printf ("\n");
-    for (i = 0; i < d; i++)
-        printf ("% 3d ", track[i][1]);
-    printf ("\n");
+    for (i = 0; i < d; i++) {
+        if (track[i][0] != -1)
+            fprintf (stderr, "%4d ", track[i][0]);
+        else
+            fprintf (stderr, "   - ");
+    }
+    fprintf (stderr, "\n");
+    for (i = 0; i < d; i++) {
+        if (track[i][1] != -1)
+            fprintf (stderr, "%4d ", track[i][1]);
+        else
+            fprintf (stderr, "   - ");
+    }
+    fprintf (stderr, "\n");
 }
 
 static void *manager (void *args) {
-    int i, q = 1;
-    int *rank_1, *rank_2;
+    int i, time = 0, q = 1, dying, sem;
+    int broken_1 = 0, broken_2 = 0, *rank_1, *rank_2;
     rider first_1, first_2;
     rank_1 = malloc (n * sizeof (int));
     rank_2 = malloc (n * sizeof (int));
-    kill_rider(0);
-    printf("morto %d\n", team_1[0].pos);
     while (1) {
-        while (1)
-            if (cont == 2*n) break;
+        dying = 0;
+        sem = 1;
+        while (sem)
+            sem_getvalue (&sem1, &sem);
+
+        time++;
+        if (debug) {
+            fprintf (stderr, "Tempo: %.2fs\n", (float) time * 0.06);
+            printTrack ();
+        }
 
         for (i = 0; i < n; i++)
             rank_1[i] = rank_2[i] = i;
         qsort (rank_1, n, sizeof (int), compare_rank_1);
         qsort (rank_2, n, sizeof (int), compare_rank_2);
 
-        if ((i = outdistance (team_1[rank_1[2]], team_2[rank_2[2]]))) {
-            printf ("Time %d venceu!\n", i);
+        if (result == -1) {
+            if (lap_change[team_1[rank_1[2]].id]) {
+                printf ("O terceiro ciclista da equipe 1 ");
+                printf ("acaba de completar a %da volta ", team_1[rank_1[2]].lap - 1);
+                printf ("aos %.2fs de corrida!\n", (float) time * 0.06);
+                printf ("Ordem dos ciclistas de sua equipe - ");
+                printf ("#1: %d ", team_1[rank_1[0]].id);
+                printf ("#2: %d ", team_1[rank_1[1]].id);
+                printf ("#3: %d\n", team_1[rank_1[2]].id);
+            }
+            if (lap_change[team_2[rank_2[2]].id]) {
+                printf ("O terceiro ciclista da equipe 2 ");
+                printf ("acaba de completar a %da volta ", team_2[rank_2[2]].lap - 1);
+                printf ("aos %.2fs de corrida!\n", (float) time * 0.06);
+                printf ("Ordem dos ciclistas de sua equipe - ");
+                printf ("#1: %d ", team_2[rank_2[0]].id);
+                printf ("#2: %d ", team_2[rank_2[1]].id);
+                printf ("#3: %d\n", team_2[rank_2[2]].id);
+            }
+        }
+
+        if (team_1[rank_1[2]].lap > 16 && team_2[rank_2[2]].lap > 16)
+            result = 0;
+        else if (team_1[rank_1[2]].lap > 16)
+            result = 1;
+        else if (team_2[rank_2[2]].lap > 16)
+            result = 2;
+
+        if ((i = outdistance (team_1[rank_1[2]], team_2[rank_2[2]])) &&
+            result == -1) {
+            if (i == 1) {
+                result = 1;
+                printf ("O terceiro ciclista da equipe 1 acaba de ul");
+                printf ("trapassar o terceiro ciclista da equipe 2!\n");
+            } else {
+                result = 2;
+                printf ("O terceiro ciclista da equipe 2 acaba de ul");
+                printf ("trapassar o terceiro ciclista da equipe 1!\n");
+            }
+            free (rank_1), rank_1 = NULL;
+            free (rank_2), rank_2 = NULL;
+            finished = 1;
+            for (i = 0; i < 2 * n - dead; i++)
+                sem_post (&sem2);
+            return NULL;
+        }
+
+        if (result == -1) {
+            first_1 = team_1[rank_1[0]], first_2 = team_2[rank_2[0]];
+            if ((lap_change[first_1.id] && first_1.lap > 4 * q) ||
+                (lap_change[first_2.id] && first_2.lap > 4 * q)) {
+                if (!random_int (10)) {
+                    if (n - broken_1 > 3 || n - broken_2 > 3) {
+                        if (n - broken_1 < 3)
+                            i = kill_rider (n + random_int (n - broken_2));
+                        else if (n - broken_2 < 3)
+                            i = kill_rider (random_int (n - broken_1));
+                        else
+                            i = kill_rider (random_int (2 * n - dead));
+                        if (i < n)
+                            broken_1++;
+                        else
+                            broken_2++;
+                        dying++;
+                    }
+                }
+                q++;
+            }
+        }
+
+        for (i = 0; i < n; i++) {
+            if (team_1[i].lap > 16) {
+                order[arrived] = team_1[i].id;
+                final_time[arrived] = (float) time * 0.06;
+                arrived++;
+                kill_rider (i), dying++;
+            }
+            if (team_2[i].lap > 16) {
+                order[arrived] = team_2[i].id;
+                final_time[arrived] = (float) time * 0.06;
+                arrived++;
+                kill_rider (n + i), dying++;
+            }
+        }
+
+        if (!(2 * n - dead)) {
             free (rank_1), rank_1 = NULL;
             free (rank_2), rank_2 = NULL;
             return NULL;
         }
 
-        if (team_1[rank_1[2]].lap > 16 && team_2[rank_2[2]].lap > 16) {
-            printf ("Empate!\n");
-            free (rank_1), rank_1 = NULL;
-            free (rank_2), rank_2 = NULL;
-            return NULL;
-        } else if (team_1[rank_1[2]].lap > 16) {
-            printf ("Time 1 venceu!\n");
-            free (rank_1), rank_1 = NULL;
-            free (rank_2), rank_2 = NULL;
-            return NULL;
-        } else if (team_2[rank_2[2]].lap > 16) {
-            printf ("Time 2 venceu!\n");
-            free (rank_1), rank_1 = NULL;
-            free (rank_2), rank_2 = NULL;
-            return NULL;
-        }
+        for (i = 0; i < 2 * n - dead + dying; i++)
+            sem_post (&sem2);
+        sem = 1;
+        while (sem)
+            sem_getvalue (&sem2, &sem);
 
-        first_1 = team_1[rank_1[0]], first_2 = team_2[rank_2[0]];
-        if ((lap_change[first_1.id] && first_1.lap > 4 * q) ||
-            (lap_change[first_2.id] && first_2.lap > 4 * q)) {
-            if (!random_int (10))
-                kill_rider (random_int (2 * n - dead));
-            q++;
-        }
-
-        printf ("- %d %d\n", first_1.lap, first_2.lap);
-        /*printTrack();*/
-        pthread_mutex_lock (&cont_mutex);
-        cont = 0;
-        pthread_mutex_unlock (&cont_mutex);
-        pthread_barrier_wait (&barrier);
+        for (i = 0; i < 2 * n - dead; i++)
+            sem_post (&sem1);
     }
     return NULL;
 }
@@ -176,9 +255,10 @@ static void *manager (void *args) {
 static void *rider_int (void *args) {
     int walked, pos;
     rider *r = (rider *) args;
-    while (1) {
+    while (!finished && r->pos != -1) {
         pos = r->pos;
         walked = 0;
+        lap_change[r->id] = 0;
         if (r->pos != -1) {
             pthread_mutex_lock (&mutex[(pos - 1 + d) % d]);
             pthread_mutex_lock (&mutex[pos]);
@@ -203,10 +283,8 @@ static void *rider_int (void *args) {
             pthread_mutex_unlock (&mutex[pos]);
             pthread_mutex_unlock (&mutex[(pos - 1 + d) % d]);
         }
-        pthread_mutex_lock (&cont_mutex);
-        cont++;
-        pthread_mutex_unlock (&cont_mutex);
-        pthread_barrier_wait (&barrier);
+        sem_wait (&sem1);
+        sem_wait (&sem2);
     }
     return NULL;
 }
@@ -218,7 +296,8 @@ int uniform_run (int ad, int an, int adebug) {
     n = an, d = ad, debug = adebug;
     srand (time (NULL));
 
-    dead = cont = 0;
+    result = -1;
+    arrived = dead = finished = 0;
 
     /* alocando a pista */
     track = malloc (d * sizeof (int *));
@@ -252,7 +331,17 @@ int uniform_run (int ad, int an, int adebug) {
         lap_change[i] = 0;
     }
 
-    pthread_mutex_init (&cont_mutex, NULL);
+    order = malloc (2 * n * sizeof (int));
+    final_time = malloc (2 * n * sizeof (float));
+
+    for (i = 0; i < 4; i++)
+        deads[i][0] = -1;
+
+    /* estado inicial da corrida */
+    if (debug) {
+        fprintf (stderr, "Tempo: 0.00s\n");
+        printTrack ();
+    }
 
     /* alocando o vetor de mutexes */
     mutex = malloc (d * sizeof (pthread_mutex_t));
@@ -260,31 +349,85 @@ int uniform_run (int ad, int an, int adebug) {
     for (i = 0; i < d; i++)
         pthread_mutex_init (&mutex[i], NULL);
 
-    pthread_barrier_init (&barrier, NULL, 2 * n + 1);
+    sem_init (&sem1, 0, 2 * n);
+    sem_init (&sem2, 0, 0);
 
     rider_t = malloc (2 * n * sizeof (pthread_t));
 
-    for (i = 0; i < n; i++) {
-        if (pthread_create
-            (&rider_t[team_1[i].id], NULL, rider_int, &team_1[i]))
-            return EXIT_FAILURE;
-        if (pthread_create
-            (&rider_t[team_2[i].id], NULL, rider_int, &team_2[i]))
-            return EXIT_FAILURE;
+    if (pthread_create (&manager_t, NULL, manager, NULL)) {
+        perror ("ERROR creating manager thread\n");
+        return EXIT_FAILURE;
     }
 
-    if (pthread_create (&manager_t, NULL, manager, NULL))
-        return EXIT_FAILURE;
+    for (i = 0; i < n; i++) {
+        if (pthread_create
+            (&rider_t[team_1[i].id], NULL, rider_int, &team_1[i])) {
+            perror ("ERROR creating rider thread\n");
+            return EXIT_FAILURE;
+        }
+        if (pthread_create
+            (&rider_t[team_2[i].id], NULL, rider_int, &team_2[i])) {
+            perror ("ERROR creating rider thread\n");
+            return EXIT_FAILURE;
+        }
+    }
 
-    if (pthread_join (manager_t, NULL))
+    if (pthread_join (manager_t, NULL)) {
+        perror ("ERROR joining manager thread\n");
         return EXIT_FAILURE;
+    }
 
-    pthread_mutex_destroy (&cont_mutex);
+    for (i = 0; i < n; i++) {
+        if (pthread_join (rider_t[team_1[i].id], NULL)) {
+            perror ("ERROR joining rider thread\n");
+            return EXIT_FAILURE;
+        }
+        if (pthread_join (rider_t[team_2[i].id], NULL)) {
+            perror ("ERROR joining rider thread\n");
+            return EXIT_FAILURE;
+        }
+    }
+
+    if (!finished) {
+        printf ("A vitoria e do time %d!\n", result);
+        printf ("Segue a lista dos ciclistas de acordo com a");
+        printf ("sua ordem de chegada:\n");
+        for (i = 0; i < arrived; i++) {
+            if (order[i] < n)
+                printf ("Ciclista %d (equipe 1), ", order[i]);
+            else
+                printf ("Ciclista %d (equipe 2), ", order[i]);
+            printf ("aos %.2fs de tempo\n", final_time[i]);
+        }
+        if (deads[0][0] != -1)
+            printf ("Infelizmente os ciclistas abaixo quebrararam:\n");
+        i = 0;
+        while (deads[i][0] != -1) {
+            if (deads[i][0] < n)
+                printf ("Ciclista %d (equipe 1) ", deads[i][0]);
+            else
+                printf ("Ciclista %d (equipe 2)", deads[i][0]);
+            printf ("na %da volta\n", deads[i][1]);
+        }
+    } else {
+        printf ("A vitoria e do time %d!\n", result);
+        if (deads[0][0] != -1)
+            printf ("Infelizmente os ciclistas abaixo quebrararam:\n");
+        i = 0;
+        while (deads[i][0] != -1) {
+            if (deads[i][0] < n)
+                printf ("Ciclista %d (equipe 1) ", deads[i][0]);
+            else
+                printf ("Ciclista %d (equipe 2)", deads[i][0]);
+            printf ("na %da volta\n", deads[i][1]);
+        }
+    }
 
     for (i = 0; i < d; i++)
         pthread_mutex_destroy (&mutex[i]);
 
-    pthread_barrier_destroy (&barrier);
+    sem_destroy (&sem1);
+    sem_destroy (&sem2);
 
     for (i = 0; i < d; i++)
         free (track[i]), track[i] = NULL;

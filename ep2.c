@@ -15,11 +15,10 @@
 
 int main (int ac, char **av) {
     char speed;
-    int d, n, debug;
+    int d, n, debug = 0;
 
     if (ac < 4) {
-        printf
-            ("Entrada incorreta. Número insuficiente de argumentos.\n");
+        fprintf (stderr, "Entrada incorreta. Número insuficiente de argumentos.\n");
         return EXIT_FAILURE;
     }
 

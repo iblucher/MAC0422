@@ -19,14 +19,14 @@ int main (int ac, char **av) {
 
     if (ac < 4) {
         fprintf (stderr,
-                 "Entrada incorreta. Número insuficiente de argumentos.\n");
+                 "Entrada incorreta. Numero insuficiente de argumentos.\n");
         return EXIT_FAILURE;
     }
 
     d = atoi (av[1]);
     n = atoi (av[2]);
-    /*if (d <= 249 || n <= 4 || n > (d / 4 + 1))
-       return EXIT_FAILURE;*/
+    if (d <= 249 || n <= 4 || n > (d / 4 + 1))
+       return EXIT_FAILURE;
     speed = *(av[3]);
     if (ac > 4 && *av[4] == '-' && *(av[4] + 1) == 'd')
         debug = 1;

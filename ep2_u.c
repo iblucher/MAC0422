@@ -453,7 +453,7 @@ int uniform_run (int ad, int an, int adebug) {
             if (deads[i][0] < n)
                 printf ("Ciclista %d (equipe 1) ", deads[i][0]);
             else
-                printf ("Ciclista %d (equipe 2)", deads[i][0]);
+                printf ("Ciclista %d (equipe 2) ", deads[i][0]);
             printf ("na %da volta\n", deads[i][1]);
             i++;
         }
@@ -466,7 +466,7 @@ int uniform_run (int ad, int an, int adebug) {
             if (deads[i][0] < n)
                 printf ("Ciclista %d (equipe 1) ", deads[i][0]);
             else
-                printf ("Ciclista %d (equipe 2)", deads[i][0]);
+                printf ("Ciclista %d (equipe 2) ", deads[i][0]);
             printf ("na %da volta\n", deads[i][1]);
             i++;
         }

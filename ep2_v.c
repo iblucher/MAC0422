@@ -144,7 +144,7 @@ static void printTrack () {
 }
 
 static void *manager (void *args) {
-    int i, time = 0, q = 1, dying, sem;
+    int i, j, time = 0, q = 1, dying, sem;
     int broken_1 = 0, broken_2 = 0, offset_1 = 0, offset_2 = 0;
     int *rank_1, *rank_2;
     rider *r, first_1, first_2;
@@ -282,6 +282,8 @@ static void *manager (void *args) {
             }
         }
 
+
+        
         for (i = 0; i < n; i++) {
             r = &team_1[rank_1[i]];
             if (lap_change[r->id]) {
@@ -294,8 +296,8 @@ static void *manager (void *args) {
                 } else {
                     if (r->speed != 30) {
                         r->speed = 30;
-                        for (i = i + 1; i < n; i++)
-                            delayed[team_1[rank_1[i]].id] = r->lap;
+                        for (j = i; j < n; j++)
+                            delayed[team_1[rank_1[j]].id] = r->lap;
                     }
                     delayed[r->id] = r->lap;
                 }
@@ -312,8 +314,8 @@ static void *manager (void *args) {
                 } else {
                     if (r->speed != 30) {
                         r->speed = 30;
-                        for (i = i + 1; i < n; i++)
-                            delayed[team_2[rank_2[i]].id] = r->lap;
+                        for (j = i; j < n; j++)
+                            delayed[team_2[rank_2[j]].id] = r->lap;
                     }
                     delayed[r->id] = r->lap;
                 }
@@ -329,6 +331,7 @@ static void *manager (void *args) {
         for (i = 0; i < 2 * n - dead; i++)
             sem_post (&sem1);
     }
+    return NULL;
 }
 
 /* thread dos ciclistas */
@@ -500,7 +503,7 @@ int varied_run (int ad, int an, int adebug) {
             if (deads[i][0] < n)
                 printf ("Ciclista %d (equipe 1) ", deads[i][0]);
             else
-                printf ("Ciclista %d (equipe 2)", deads[i][0]);
+                printf ("Ciclista %d (equipe 2) ", deads[i][0]);
             printf ("na %da volta\n", deads[i][1]);
             i++;
         }
@@ -513,7 +516,7 @@ int varied_run (int ad, int an, int adebug) {
             if (deads[i][0] < n)
                 printf ("Ciclista %d (equipe 1) ", deads[i][0]);
             else
-                printf ("Ciclista %d (equipe 2)", deads[i][0]);
+                printf ("Ciclista %d (equipe 2) ", deads[i][0]);
             printf ("na %da volta\n", deads[i][1]);
             i++;
         }

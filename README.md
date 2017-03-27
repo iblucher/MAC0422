@@ -1,2 +1,2 @@
 # MAC0422
-Exercícios-programa para a disciplina "Sistemas Operacionais"
+Exercício-programa 2 para a disciplina "Sistemas Operacionais"
